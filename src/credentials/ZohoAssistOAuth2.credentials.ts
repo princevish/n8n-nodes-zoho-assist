@@ -29,8 +29,8 @@ export class ZohoAssistOAuth2 implements ICredentialType {
 			default: 'ZohoAssist.sessionapi.ALL,ZohoAssist.unattended.computer.ALL,ZohoAssist.unattended.group.ALL,ZohoAssist.unattended.device.CREATE,ZohoAssist.reportapi.READ,ZohoAssist.userapi.READ',
 		},
 		{
-			displayName: 'Auth Query Params',
-			name: 'authQueryParams',
+			displayName: 'Auth URL Parameters',
+			name: 'authUrlParameters',
 			type: 'hidden',
 			default: 'access_type=offline&prompt=consent',
 		},
