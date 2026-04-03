@@ -6,7 +6,9 @@
     "rootDir": ".",
     "esModuleInterop": true,
     "strict": false,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "declaration": true,
+    "declarationMap": true
   },
   "include": ["nodes", "credentials", "index.ts"]
 }

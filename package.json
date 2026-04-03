@@ -8,15 +8,20 @@
     "email": "princevworld@gmail.com",
     "url": "https://github.com/princevish"
   },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
   "keywords": [
     "n8n",
     "n8n-community-node-package",
+    "n8n-nodes",
     "zoho",
-    "zoho assist"
-  ],
-  "main": "dist/index.js",
-  "files": [
-    "dist"
+    "zoho assist",
+    "remote support",
+    "automation",
+    "recording download"
   ],
   "scripts": {
     "build": "tsc",
