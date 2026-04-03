@@ -32,6 +32,8 @@ export class ZohoAssist implements INodeType {
     version: 1,
     description: 'Zoho Assist Full Node with Video Download',
     defaults: { name: 'Zoho Assist' },
+    inputs: ['main'],
+    outputs: ['main'],
     credentials: [{ name: 'zohoAssistOAuth2', required: true }],
     properties: [
       {
@@ -79,7 +81,7 @@ export class ZohoAssist implements INodeType {
 
     for (let i = 0; i < items.length; i++) {
       try {
-        const dc = this.getNodeParameter('dc', i);
+        const dc = this.getNodeParameter('dc', i) as string;
         const baseMap: any = {
           in: 'https://assist.zoho.in',
           com: 'https://assist.zoho.com',

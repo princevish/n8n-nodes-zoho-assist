@@ -25,9 +25,7 @@ export class ZohoAssistOAuth2 implements ICredentialType {
     }
   ];
 
-  authenticate = {
-    type: 'oAuth2'
-  };
+
 
   async preAuthentication(this: any, credentials: any) {
     const dc = credentials.dc || 'in';

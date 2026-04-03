@@ -5,7 +5,8 @@
     "outDir": "dist",
     "rootDir": ".",
     "esModuleInterop": true,
-    "strict": false
+    "strict": false,
+    "skipLibCheck": true
   },
   "include": ["nodes", "credentials", "index.ts"]
 }

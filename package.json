@@ -25,7 +25,9 @@
     "release": "n8n-node release"
   },
   "devDependencies": {
+    "@n8n/eslint-plugin-community-nodes": "^0.10.0",
     "@n8n/node-cli": "^0.23.0",
+    "n8n-workflow": "*",
     "typescript": "^5.0.0"
   },
   "peerDependencies": {
