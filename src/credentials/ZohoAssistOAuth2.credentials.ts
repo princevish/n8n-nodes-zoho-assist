@@ -25,7 +25,7 @@ export class ZohoAssistOAuth2 implements ICredentialType {
 		{
 			displayName: 'Scope',
 			name: 'scope',
-			type: 'hidden',
+			type: 'string',
 			default: 'ZohoAssist.sessionapi.ALL,ZohoAssist.unattended.computer.ALL,ZohoAssist.unattended.group.ALL,ZohoAssist.unattended.device.CREATE,ZohoAssist.reportapi.READ,ZohoAssist.userapi.READ',
 		},
 		{
