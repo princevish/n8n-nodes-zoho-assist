@@ -24,7 +24,7 @@
     "recording download"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node -e \"const fs = require('fs'); const path = 'dist/src/ZohoAssist'; if (!fs.existsSync(path)) fs.mkdirSync(path, { recursive: true }); fs.copyFileSync('src/ZohoAssist/zohoAssist.svg', path + '/zohoAssist.svg');\"",
     "dev": "n8n-node dev",
     "lint": "n8n-node lint",
     "release": "n8n-node release"
