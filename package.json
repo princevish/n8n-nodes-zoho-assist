@@ -1,0 +1,51 @@
+{
+  "name": "n8n-nodes-zoho-assist",
+  "version": "1.0.0",
+  "description": "Zoho Assist integration for n8n with recordings download and Backblaze B2 pipeline support",
+  "license": "MIT",
+  "author": {
+    "name": "Prince Vishwakarma",
+    "email": "princevworld@gmail.com",
+    "url": "https://github.com/princevish"
+  },
+  "keywords": [
+    "n8n",
+    "n8n-community-node-package",
+    "zoho",
+    "zoho assist"
+  ],
+  "main": "dist/index.js",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "n8n-node dev",
+    "lint": "n8n-node lint",
+    "release": "n8n-node release"
+  },
+  "devDependencies": {
+    "@n8n/node-cli": "^0.23.0",
+    "typescript": "^5.0.0"
+  },
+  "peerDependencies": {
+    "n8n-workflow": "*"
+  },
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "nodes": [
+      "dist/nodes/ZohoAssist/ZohoAssist.node.js"
+    ],
+    "credentials": [
+      "dist/credentials/ZohoAssistOAuth2.credentials.js"
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/princevish/n8n-nodes-zoho-assist.git"
+  },
+  "bugs": {
+    "url": "https://github.com/princevish/n8n-nodes-zoho-assist/issues"
+  },
+  "homepage": "https://github.com/princevish/n8n-nodes-zoho-assist#readme"
+}
