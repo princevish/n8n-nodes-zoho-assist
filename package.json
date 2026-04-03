@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-zoho-assist",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "description": "Zoho Assist integration for n8n with recordings download and Backblaze B2 pipeline support",
   "license": "MIT",
   "author": {
@@ -41,10 +41,10 @@
   "n8n": {
     "n8nNodesApiVersion": 1,
     "nodes": [
-      "dist/nodes/ZohoAssist/ZohoAssist.node.js"
+      "dist/src/ZohoAssist/ZohoAssist.node.js"
     ],
     "credentials": [
-      "dist/credentials/ZohoAssistOAuth2.credentials.js"
+      "dist/src/credentials/ZohoAssistOAuth2.credentials.js"
     ]
   },
   "repository": {

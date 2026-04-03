@@ -10,5 +10,8 @@
     "declaration": true,
     "declarationMap": true
   },
-  "include": ["nodes", "credentials", "index.ts"]
+  "include": [
+    "src/**/*",
+    "index.ts"
+  ]
 }
