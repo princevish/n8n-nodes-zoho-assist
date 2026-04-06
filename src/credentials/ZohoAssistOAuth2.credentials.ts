@@ -5,6 +5,8 @@ export class ZohoAssistOAuth2 implements ICredentialType {
 	displayName = 'Zoho Assist OAuth2';
 	extends = ['oAuth2Api'];
 
+	authentication = 'header' as const;
+
 	properties: INodeProperties[] = [
 		{
 			displayName: 'Data Center',
@@ -18,7 +20,7 @@ export class ZohoAssistOAuth2 implements ICredentialType {
 				{ name: 'China', value: 'com.cn' },
 				{ name: 'Japan', value: 'jp' },
 			],
-			default: 'com',
+			default: 'in',
 			required: true,
 			description: 'The data center where your Zoho account is hosted (e.g., US, India, EU)',
 		},
@@ -35,16 +37,16 @@ export class ZohoAssistOAuth2 implements ICredentialType {
 			default: 'access_type=offline&prompt=consent',
 		},
 		{
-			displayName: 'Authentication Query Parameters',
-			name: 'authenticationQueryParams',
+			displayName: 'Authentication',
+			name: 'authentication',
 			type: 'hidden',
-			default: 'access_type=offline&prompt=consent',
+			default: 'header',
 		},
 	];
 
 	async preAuthentication(this: any, credentials: any) {
 		const dc = credentials.dc || 'in';
-		const map: any = {
+		const map: { [key: string]: string } = {
 			in: 'https://accounts.zoho.in',
 			com: 'https://accounts.zoho.com',
 			eu: 'https://accounts.zoho.eu',
@@ -53,12 +55,13 @@ export class ZohoAssistOAuth2 implements ICredentialType {
 			jp: 'https://accounts.zoho.jp',
 		};
 
-		const accountsUrl = map[dc] || 'https://accounts.zoho.com';
+		const accountsUrl = map[dc] || 'https://accounts.zoho.in';
 
 		return {
 			...credentials,
-			authUrl: `${accountsUrl}/oauth/v2/auth?access_type=offline&prompt=consent`,
+			authUrl: `${accountsUrl}/oauth/v2/auth`,
 			accessTokenUrl: `${accountsUrl}/oauth/v2/token`,
+			authentication: 'header',
 		};
 	}
 }

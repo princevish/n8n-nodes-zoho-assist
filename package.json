@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-zoho-assist",
-  "version": "4.0.3",
+  "version": "4.0.4",
   "description": "Zoho Assist integration for n8n with recordings download and Backblaze B2 pipeline support",
   "license": "MIT",
   "author": {
@@ -49,7 +49,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/princevish/n8n-nodes-zoho-assist.git"
+    "url": "git+https://github.com/princevish/n8n-nodes-zoho-assist.git"
   },
   "bugs": {
     "url": "https://github.com/princevish/n8n-nodes-zoho-assist/issues"

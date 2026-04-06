@@ -15,12 +15,29 @@ async function zohoRequest(this: IAllExecuteFunctions, options: any, itemIndex: 
 		try {
 			const credentials = await this.getCredentials('zohoAssistOAuth2', itemIndex);
 			const tokenData = credentials.oauthTokenData as any;
+			const callbackQueryString = tokenData?.callbackQueryString as string | undefined;
+			const callbackParams = callbackQueryString ? new URLSearchParams(callbackQueryString) : undefined;
+			const oauthErrorCode = tokenData?.error || callbackParams?.get('error');
+			const oauthErrorDescription = tokenData?.error_description || callbackParams?.get('error_description');
 			const token = (tokenData?.access_token || credentials.accessToken || credentials.oauthToken || tokenData?.accessToken) as string;
 
 			if (!token) {
 				const availableKeys = Object.keys(credentials || {}).join(', ');
 				const tokenDataKeys = tokenData ? Object.keys(tokenData).join(', ') : 'none';
-				throw new Error(`Access token missing. Please re-authenticate your Zoho Assist credentials. (Found keys: [${availableKeys}], TokenData keys: [${tokenDataKeys}])`);
+
+				// Handle Zoho specific error codes that might be passed back in tokenData or callback params
+				const oauthError = (oauthErrorCode || oauthErrorDescription)
+					? `: ${oauthErrorCode || ''}${oauthErrorDescription ? ' - ' + oauthErrorDescription : ''}`.trim()
+					: '';
+
+				let reauthHint = 'Please re-authenticate your Zoho Assist credentials.';
+				if (oauthErrorCode === 'invalid_client_secret') {
+					reauthHint = 'IMPORTANT: "invalid_client_secret" detected. Please verify your Client ID and Client Secret in the Zoho Developer Console. Ensure you are using the correct Data Center (e.g., India vs US) and that "authentication: header" is enforced. You MUST delete and recreate the credential in n8n after fixing.';
+				} else if (oauthErrorCode === 'invalid_code' || oauthErrorCode === 'access_denied') {
+					reauthHint = 'The authorization code has expired or was denied. Please re-authenticate.';
+				}
+
+				throw new Error(`Access token missing${oauthError}. ${reauthHint} (Found keys: [${availableKeys}], TokenData keys: [${tokenDataKeys}])`);
 			}
 
 			const requestOptions = {
@@ -493,7 +510,7 @@ export class ZohoAssist implements INodeType {
 			try {
 				const credentials = await this.getCredentials('zohoAssistOAuth2');
 				const dc = (credentials.dc as string);
-				
+
 				if (!dc) {
 					throw new Error('Data Center (DC) is not defined in credentials.');
 				}
