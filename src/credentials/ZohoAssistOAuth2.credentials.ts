@@ -5,7 +5,7 @@ export class ZohoAssistOAuth2 implements ICredentialType {
 	displayName = 'Zoho Assist OAuth2';
 	extends = ['oAuth2Api'];
 
-	authentication = 'header' as const;
+	authentication = 'body' as const;
 
 	properties: INodeProperties[] = [
 		{
@@ -61,7 +61,7 @@ export class ZohoAssistOAuth2 implements ICredentialType {
 			...credentials,
 			authUrl: `${accountsUrl}/oauth/v2/auth`,
 			accessTokenUrl: `${accountsUrl}/oauth/v2/token`,
-			authentication: 'header',
+			authentication: 'body',
 		};
 	}
 }

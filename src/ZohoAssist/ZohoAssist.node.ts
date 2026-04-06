@@ -8,69 +8,82 @@ import {
 } from 'n8n-workflow';
 
 async function zohoRequest(this: IAllExecuteFunctions, options: any, itemIndex: number) {
-	const maxRetries = 3;
+	const maxRetries = 2;
 	let lastError: any;
 
 	for (let attempt = 0; attempt < maxRetries; attempt++) {
 		try {
 			const credentials = await this.getCredentials('zohoAssistOAuth2', itemIndex);
 			const tokenData = credentials.oauthTokenData as any;
-			const callbackQueryString = tokenData?.callbackQueryString as string | undefined;
-			const callbackParams = callbackQueryString ? new URLSearchParams(callbackQueryString) : undefined;
-			const oauthErrorCode = tokenData?.error || callbackParams?.get('error');
-			const oauthErrorDescription = tokenData?.error_description || callbackParams?.get('error_description');
 			const token = (tokenData?.access_token || credentials.accessToken || credentials.oauthToken || tokenData?.accessToken) as string;
 
 			if (!token) {
-				const availableKeys = Object.keys(credentials || {}).join(', ');
-				const tokenDataKeys = tokenData ? Object.keys(tokenData).join(', ') : 'none';
-
-				// Handle Zoho specific error codes that might be passed back in tokenData or callback params
-				const oauthError = (oauthErrorCode || oauthErrorDescription)
-					? `: ${oauthErrorCode || ''}${oauthErrorDescription ? ' - ' + oauthErrorDescription : ''}`.trim()
-					: '';
-
-				let reauthHint = 'Please re-authenticate your Zoho Assist credentials.';
-				if (oauthErrorCode === 'invalid_client_secret') {
-					reauthHint = 'IMPORTANT: "invalid_client_secret" detected. Please verify your Client ID and Client Secret in the Zoho Developer Console. Ensure you are using the correct Data Center (e.g., India vs US) and that "authentication: header" is enforced. You MUST delete and recreate the credential in n8n after fixing.';
-				} else if (oauthErrorCode === 'invalid_code' || oauthErrorCode === 'access_denied') {
-					reauthHint = 'The authorization code has expired or was denied. Please re-authenticate.';
-				}
-
-				throw new Error(`Access token missing${oauthError}. ${reauthHint} (Found keys: [${availableKeys}], TokenData keys: [${tokenDataKeys}])`);
+				throw new Error('Access token missing. Please re-authenticate.');
 			}
+
+			const dc = (credentials.dc as string) || 'in';
+			const baseMap: { [key: string]: string } = {
+				in: 'https://assist.zoho.in',
+				com: 'https://assist.zoho.com',
+				eu: 'https://assist.zoho.eu',
+				'com.au': 'https://assist.zoho.com.au',
+				'com.cn': 'https://assist.zoho.com.cn',
+				jp: 'https://assist.zoho.jp',
+			};
+			const baseUrl = baseMap[dc] || 'https://assist.zoho.in';
+			const apiUrl = `${baseUrl}/api/v2`;
+
+			const headers: { [key: string]: string } = {
+				'Content-Type': 'application/x-www-form-urlencoded', // Default
+				'Authorization': `Zoho-oauthtoken ${token}`,
+				...options.headers,
+			};
+
+			// If json: true is passed, ensure Content-Type is correct if not already overridden
+			if (options.json && !options.headers?.['Content-Type']) {
+				headers['Content-Type'] = 'application/json';
+			}
+
+			// Ensure no collision with n8n injected headers if they somehow get through
+			if (headers['authorization']) delete headers['authorization'];
 
 			const requestOptions = {
 				...options,
-				headers: {
-					...options.headers,
-					'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
-					Authorization: `Zoho-oauthtoken ${token}`,
-				},
+				url: options.url.startsWith('http') ? options.url : `${apiUrl}${options.url.startsWith('/') ? options.url : '/' + options.url}`,
+				headers,
 			};
-			return await this.helpers.httpRequest.call(this, requestOptions);
+
+			try {
+				return await this.helpers.httpRequest.call(this, requestOptions);
+			} catch (error: any) {
+				const bodyStr = typeof requestOptions.body === 'string' ? requestOptions.body : JSON.stringify(requestOptions.body || {});
+				const errorData = JSON.stringify(error.response?.data || error.message);
+				// Enhanced diagnostic for all non-2xx errors
+				throw new NodeApiError(this.getNode(), error, {
+					message: `ZOHO_API_ERROR: ${errorData} | SENT_BODY: ${bodyStr} | URL: ${requestOptions.method} ${requestOptions.url}`,
+				});
+			}
 		} catch (error: any) {
 			lastError = error;
+			if (error.name === 'NodeApiError') throw error; // Re-throw our diagnostic
 			const status = error?.statusCode || error?.response?.status;
+			const errorCode = error?.response?.data?.error?.code;
 
-			// Don't retry on 4xx errors (except 429 and 401 for token refresh)
-			if (status >= 400 && status < 500 && status !== 429 && status !== 401) {
-				throw error;
+			// Special handling for Zoho 401 - Code 2000 (Invalid Token)
+			if (status === 401 && (errorCode === 2000 || (error.message && error.message.includes('INVALID_OAUTHTOKEN')))) {
+				const creds = await this.getCredentials('zohoAssistOAuth2', itemIndex);
+				const dcValue = (creds.dc as string) || 'in';
+				throw new Error(`Authorization failed (Code 2000). This usually means your Access Token is invalid for the selected Data Center (${dcValue}). Please ensure your Zoho account is actually in the ${dcValue.toUpperCase()} region.`);
 			}
 
-			// Don't retry if it's a specific error without status that won't be fixed by retrying (like auth setup)
-			if (!status && (error.message?.includes('token') || error.message?.includes('credential'))) {
-				throw error;
-			}
+			if (status >= 400 && status < 500 && status !== 429 && status !== 401) throw error;
 
-			// Wait before next retry
 			if (attempt < maxRetries - 1) {
-				const delay = Math.pow(2, attempt) * 1000;
-				await new Promise((res) => setTimeout(res, delay));
+				await new Promise((res) => setTimeout(res, 1000));
 			}
 		}
 	}
-	throw lastError || new Error('Max retries exceeded while calling Zoho Assist API');
+	throw lastError;
 }
 
 export class ZohoAssist implements INodeType {
@@ -283,8 +296,50 @@ export class ZohoAssist implements INodeType {
 						operation: ['schedule'],
 					},
 				},
-				default: 'UTC',
+				default: 'Asia/Kolkata',
 				description: 'The time zone for the scheduled session',
+			},
+			{
+				displayName: 'UTC Offset',
+				name: 'utcOffset',
+				type: 'string',
+				required: true,
+				displayOptions: {
+					show: {
+						resource: ['session'],
+						operation: ['schedule'],
+					},
+				},
+				default: '+05:30',
+				placeholder: '+05:30',
+				description: 'The UTC offset for the scheduled session (e.g., +05:30)',
+			},
+			{
+				displayName: 'Reminder',
+				name: 'reminder',
+				type: 'number',
+				required: true,
+				displayOptions: {
+					show: {
+						resource: ['session'],
+						operation: ['schedule'],
+					},
+				},
+				default: 15,
+				description: 'Reminder time in minutes before the session starts',
+			},
+			{
+				displayName: 'Notes',
+				name: 'notes',
+				type: 'string',
+				displayOptions: {
+					show: {
+						resource: ['session'],
+						operation: ['schedule'],
+					},
+				},
+				default: '',
+				description: 'Description or notes for the scheduled session',
 			},
 
 			// Resource ID (for Start Unattended, Get Device)
@@ -319,7 +374,7 @@ export class ZohoAssist implements INodeType {
 			},
 			{
 				displayName: 'Group Description',
-				name: 'description',
+				name: 'groupDescription',
 				type: 'string',
 				displayOptions: {
 					show: {
@@ -508,62 +563,86 @@ export class ZohoAssist implements INodeType {
 
 		for (let i = 0; i < items.length; i++) {
 			try {
-				const credentials = await this.getCredentials('zohoAssistOAuth2');
-				const dc = (credentials.dc as string);
-
-				if (!dc) {
-					throw new Error('Data Center (DC) is not defined in credentials.');
-				}
-
-				const baseMap: { [key: string]: string } = {
-					in: 'https://assist.zoho.in',
-					com: 'https://assist.zoho.com',
-					eu: 'https://assist.zoho.eu',
-					'com.au': 'https://assist.zoho.com.au',
-					'com.cn': 'https://assist.zoho.com.cn',
-					jp: 'https://assist.zoho.jp',
-				};
-				const baseUrl = `${baseMap[dc] || 'https://assist.zoho.com'}/api/v2`;
-
 				const resource = this.getNodeParameter('resource', i) as string;
 				const operation = this.getNodeParameter('operation', i) as string;
 				const departmentId = this.getNodeParameter('departmentId', i) as string;
 
 				let res: any;
+				// We set common headers, but specific operations might override or add to them
 				const headers: any = {};
-				if (departmentId) {
-					headers['x-com-zoho-assist-department-id'] = departmentId;
-				}
 
 				if (resource === 'session') {
 					if (operation === 'create') {
-						const customer_email = this.getNodeParameter('customerEmail', i);
-						const type = this.getNodeParameter('type', i);
+						const customer_email = this.getNodeParameter('customerEmail', i) as string;
+
+						const qs: any = { customer_email, type: 'rs' };
+						if (departmentId) {
+							headers['X-Com-Zoho-Assist-Department-Id'] = departmentId;
+							qs.department_id = departmentId;
+						}
 						res = await zohoRequest.call(this, {
 							method: 'POST',
-							url: `${baseUrl}/session`,
+							url: '/session',
+							qs,
 							headers,
-							body: { customer_email, type },
-							form: true,
 						}, i);
 					} else if (operation === 'schedule') {
-						const customer_email = this.getNodeParameter('customerEmail', i);
-						const title = this.getNodeParameter('title', i);
-						const schedule_time = this.getNodeParameter('scheduleTime', i);
-						const time_zone = this.getNodeParameter('timeZone', i);
+						const customer_email = this.getNodeParameter('customerEmail', i) as string;
+						const title = this.getNodeParameter('title', i) as string;
+						const schedule_time_str = this.getNodeParameter('scheduleTime', i) as string;
+						const utcoffset = this.getNodeParameter('utcOffset', i) as string;
+						const time_zone = this.getNodeParameter('timeZone', i) as string;
+						const reminder = this.getNodeParameter('reminder', i) as number;
+						const notes = this.getNodeParameter('notes', i) as string;
+
+						if (!schedule_time_str) {
+							throw new Error('Schedule Time is required for scheduled sessions.');
+						}
+						const schedule_time = new Date(schedule_time_str).getTime();
+						if (isNaN(schedule_time)) {
+							throw new Error('Invalid Schedule Time format. Please provide a valid date.');
+						}
+
+						// Snap reminder to valid intervals (0, 5, 10, 15, 30, 45, 60, 1440)
+						const validReminders = [0, 5, 10, 15, 30, 45, 60, 1440];
+						let finalReminder = parseInt(reminder.toString(), 10) || 0;
+						if (!validReminders.includes(finalReminder)) {
+							// Snap to nearest valid if not listed, or 15
+							finalReminder = 15;
+						}
+
+						const body: any = {
+							mode: 'SCHEDULE',
+							title,
+							customer_email: customer_email.trim(),
+							schedule_time: schedule_time.toString(),
+							reminder: finalReminder,
+							utc_offset: utcoffset || '+05:30',
+							time_zone: time_zone || 'Asia/Kolkata',
+							notes: notes || '',
+						};
+
+						// Construct JSON string manually to prevent any numeric precision loss
+						// specifically for the large 18-digit department_id in Zoho.
+						let bodyPayload: string = JSON.stringify(body);
+						if (departmentId && /^\d+$/.test(departmentId.toString())) {
+							bodyPayload = bodyPayload.replace('}', `,"department_id":${departmentId}}`);
+						}
+
+						// For schedule, we send everything exactly as the working curl requires
 						res = await zohoRequest.call(this, {
 							method: 'POST',
-							url: `${baseUrl}/session/schedule`,
-							headers,
-							body: { customer_email, title, schedule_time, time_zone, mode: 'SCHEDULE' },
-							form: true,
+							url: '/session/schedule',
+							body: bodyPayload,
+							headers: { 'Content-Type': 'application/json' },
+							json: false,
 						}, i);
 					} else if (operation === 'startUnattended') {
 						const resourceId = this.getNodeParameter('resourceId', i);
 						const qs = departmentId ? { department_id: departmentId } : {};
 						res = await zohoRequest.call(this, {
 							method: 'POST',
-							url: `${baseUrl}/unattended/${resourceId}/connect`,
+							url: `/unattended/${resourceId}/connect`,
 							headers,
 							qs,
 						}, i);
@@ -572,7 +651,7 @@ export class ZohoAssist implements INodeType {
 					if (operation === 'list') {
 						res = await zohoRequest.call(this, {
 							method: 'GET',
-							url: `${baseUrl}/devices`,
+							url: '/devices',
 							headers,
 							json: true,
 						}, i);
@@ -580,7 +659,7 @@ export class ZohoAssist implements INodeType {
 						const resourceId = this.getNodeParameter('resourceId', i);
 						res = await zohoRequest.call(this, {
 							method: 'GET',
-							url: `${baseUrl}/devices/${resourceId}`,
+							url: `/devices/${resourceId}`,
 							headers,
 							json: true,
 						}, i);
@@ -588,19 +667,19 @@ export class ZohoAssist implements INodeType {
 				} else if (resource === 'group') {
 					if (operation === 'create') {
 						const group_name = this.getNodeParameter('groupName', i);
-						const description = this.getNodeParameter('description', i);
+						const groupDescription = this.getNodeParameter('groupDescription', i);
 						res = await zohoRequest.call(this, {
 							method: 'POST',
-							url: `${baseUrl}/unattended_computer/group`,
+							url: '/unattended_computer/group',
 							headers,
-							body: { group_name, description, department_id: departmentId },
-							form: true,
+							body: { group_name, description: groupDescription, department_id: departmentId },
+							json: true,
 						}, i);
 					} else if (operation === 'list') {
 						const qs = departmentId ? { department_id: departmentId } : {};
 						res = await zohoRequest.call(this, {
 							method: 'GET',
-							url: `${baseUrl}/unattended_computer/group`,
+							url: '/unattended_computer/group',
 							headers,
 							qs,
 							json: true,
@@ -616,7 +695,7 @@ export class ZohoAssist implements INodeType {
 						if (toDateValue) qs.todate = new Date(toDateValue).getTime().toString();
 						res = await zohoRequest.call(this, {
 							method: 'GET',
-							url: `${baseUrl}/reports`,
+							url: '/reports',
 							headers,
 							qs,
 							json: true,
@@ -625,7 +704,7 @@ export class ZohoAssist implements INodeType {
 						const resourceId = this.getNodeParameter('resourceId', i);
 						const response = await zohoRequest.call(this, {
 							method: 'GET',
-							url: `${baseUrl}/download_session_video/${resourceId}`,
+							url: `/download_session_video/${resourceId}`,
 							headers,
 							responseType: 'arraybuffer',
 							encoding: 'arraybuffer',
@@ -638,7 +717,7 @@ export class ZohoAssist implements INodeType {
 					if (operation === 'get') {
 						res = await zohoRequest.call(this, {
 							method: 'GET',
-							url: `${baseUrl}/user`,
+							url: '/user',
 							headers,
 							json: true,
 						}, i);
@@ -666,7 +745,7 @@ export class ZohoAssist implements INodeType {
 
 					const options: any = {
 						method: httpMethod,
-						url: `${baseUrl}${apiPath.startsWith('/') ? apiPath : '/' + apiPath}`,
+						url: apiPath,
 						headers: fullHeaders,
 						qs,
 						json: true,
