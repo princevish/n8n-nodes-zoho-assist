@@ -46,7 +46,7 @@ describe('ZohoAssist Node', () => {
 				body: {
 					customer_email: 'test@example.com',
 					type: 'rs',
-					department_id: '123456',
+					department_id: 123456,
 				},
 				json: true,
 			}),
@@ -70,6 +70,7 @@ describe('ZohoAssist Node', () => {
 			if (name === 'reminder') return 15;
 			if (name === 'notes') return 'Some notes';
 			if (name === 'departmentId') return '123456';
+			if (name === 'duration') return 60;
 			return '';
 		});
 
@@ -83,8 +84,9 @@ describe('ZohoAssist Node', () => {
 				url: '/session/schedule',
 				body: expect.objectContaining({
 					mode: 'SCHEDULE',
-					schedule_time: futureTimestamp, // Should be a number
-					department_id: '123456',
+					schedule_time: futureTimestamp.toString(),
+					schedule_upto: (futureTimestamp + 60 * 60 * 1000).toString(),
+					department_id: 123456,
 					notes: 'Some notes',
 				}),
 				json: true,

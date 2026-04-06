@@ -209,6 +209,19 @@ export class ZohoAssist implements INodeType {
 				description: 'The scheduled start time (e.g., 2024-04-10 10:30:00)',
 			},
 			{
+				displayName: 'Duration (Minutes)',
+				name: 'duration',
+				type: 'number',
+				displayOptions: {
+					show: {
+						resource: ['session'],
+						operation: ['schedule'],
+					},
+				},
+				default: 60,
+				description: 'The duration of the session in minutes',
+			},
+			{
 				displayName: 'Time Zone',
 				name: 'timeZone',
 				type: 'string',
@@ -505,7 +518,7 @@ export class ZohoAssist implements INodeType {
 						};
 
 						if (departmentId) {
-							body.department_id = departmentId;
+							body.department_id = Number(departmentId);
 						}
 
 						res = await zohoRequest.call(this, {
@@ -522,6 +535,7 @@ export class ZohoAssist implements INodeType {
 						const time_zone = this.getNodeParameter('timeZone', i) as string;
 						const reminder = this.getNodeParameter('reminder', i) as number;
 						const notes = this.getNodeParameter('notes', i) as string;
+						const duration = this.getNodeParameter('duration', i) as number;
 
 						if (!schedule_time_str) {
 							throw new Error('Schedule Time is required for scheduled sessions.');
@@ -539,11 +553,14 @@ export class ZohoAssist implements INodeType {
 							finalReminder = 15;
 						}
 
+						const schedule_upto = schedule_time + (duration * 60 * 1000);
+
 						const body: any = {
 							mode: 'SCHEDULE',
 							title,
 							customer_email: customer_email.trim(),
-							schedule_time,
+							schedule_time: schedule_time.toString(),
+							schedule_upto: schedule_upto.toString(),
 							reminder: finalReminder,
 							utc_offset: utcoffset || '+05:30',
 							time_zone: time_zone || 'Asia/Kolkata',
@@ -554,7 +571,7 @@ export class ZohoAssist implements INodeType {
 						}
 
 						if (departmentId) {
-							body.department_id = departmentId;
+							body.department_id = Number(departmentId);
 						}
 
 						res = await zohoRequest.call(this, {
@@ -598,7 +615,7 @@ export class ZohoAssist implements INodeType {
 							method: 'POST',
 							url: '/unattended_computer/group',
 							headers,
-							body: { group_name, description: groupDescription, department_id: departmentId },
+							body: { group_name, description: groupDescription, department_id: departmentId ? Number(departmentId) : undefined },
 							json: true,
 						}, i);
 					} else if (operation === 'list') {
