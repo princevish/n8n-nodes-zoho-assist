@@ -56,7 +56,7 @@ describe('ZohoAssist Node', () => {
 	});
 
 	it('should successfully schedule a session with correct data types', async () => {
-		const futureDate = '2026-04-10 10:30:00';
+		const futureDate = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 		const futureTimestamp = new Date(futureDate).getTime();
 
 		mockExecuteFunctions.getNodeParameter.mockImplementation((name: string) => {
@@ -99,7 +99,7 @@ describe('ZohoAssist Node', () => {
 		mockExecuteFunctions.getNodeParameter.mockImplementation((name: string) => {
 			if (name === 'resource') return 'session';
 			if (name === 'operation') return 'schedule';
-			if (name === 'scheduleTime') return '2026-04-10 10:30:00';
+			if (name === 'scheduleTime') return new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 			if (name === 'notes') return '';
 			return 'value';
 		});
