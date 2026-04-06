@@ -14,10 +14,13 @@ async function zohoRequest(this: IAllExecuteFunctions, options: any, itemIndex: 
 	for (let attempt = 0; attempt < maxRetries; attempt++) {
 		try {
 			const credentials = await this.getCredentials('zohoAssistOAuth2', itemIndex);
-			const token = ((credentials.oauthTokenData as any)?.access_token || credentials.accessToken || credentials.oauthToken) as string;
+			const tokenData = credentials.oauthTokenData as any;
+			const token = (tokenData?.access_token || credentials.accessToken || credentials.oauthToken || tokenData?.accessToken) as string;
 
 			if (!token) {
-				throw new Error(`Access token missing. Please re-authenticate your Zoho Assist credentials.`);
+				const availableKeys = Object.keys(credentials || {}).join(', ');
+				const tokenDataKeys = tokenData ? Object.keys(tokenData).join(', ') : 'none';
+				throw new Error(`Access token missing. Please re-authenticate your Zoho Assist credentials. (Found keys: [${availableKeys}], TokenData keys: [${tokenDataKeys}])`);
 			}
 
 			const requestOptions = {
@@ -33,8 +36,8 @@ async function zohoRequest(this: IAllExecuteFunctions, options: any, itemIndex: 
 			lastError = error;
 			const status = error?.statusCode || error?.response?.status;
 
-			// Don't retry on 4xx errors (except 429)
-			if (status >= 400 && status < 500 && status !== 429) {
+			// Don't retry on 4xx errors (except 429 and 401 for token refresh)
+			if (status >= 400 && status < 500 && status !== 429 && status !== 401) {
 				throw error;
 			}
 

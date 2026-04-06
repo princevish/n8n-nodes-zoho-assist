@@ -29,8 +29,14 @@ export class ZohoAssistOAuth2 implements ICredentialType {
 			default: 'ZohoAssist.sessionapi.ALL,ZohoAssist.unattended.computer.ALL,ZohoAssist.unattended.group.ALL,ZohoAssist.unattended.device.CREATE,ZohoAssist.reportapi.READ,ZohoAssist.userapi.READ',
 		},
 		{
-			displayName: 'Auth URL Parameters',
-			name: 'authUrlParameters',
+			displayName: 'Auth Query Parameters',
+			name: 'authQueryParameters',
+			type: 'hidden',
+			default: 'access_type=offline&prompt=consent',
+		},
+		{
+			displayName: 'Authentication Query Parameters',
+			name: 'authenticationQueryParams',
 			type: 'hidden',
 			default: 'access_type=offline&prompt=consent',
 		},
@@ -51,7 +57,7 @@ export class ZohoAssistOAuth2 implements ICredentialType {
 
 		return {
 			...credentials,
-			authUrl: `${accountsUrl}/oauth/v2/auth`,
+			authUrl: `${accountsUrl}/oauth/v2/auth?access_type=offline&prompt=consent`,
 			accessTokenUrl: `${accountsUrl}/oauth/v2/token`,
 		};
 	}
