@@ -27,12 +27,16 @@
     "build": "tsc && node -e \"const fs = require('fs'); const path = 'dist/src/ZohoAssist'; if (!fs.existsSync(path)) fs.mkdirSync(path, { recursive: true }); fs.copyFileSync('src/ZohoAssist/zohoAssist.svg', path + '/zohoAssist.svg');\"",
     "dev": "n8n-node dev",
     "lint": "n8n-node lint",
+    "test": "jest",
     "release": "n8n-node release"
   },
   "devDependencies": {
     "@n8n/eslint-plugin-community-nodes": "^0.10.0",
     "@n8n/node-cli": "^0.23.0",
+    "@types/jest": "^29.5.14",
+    "jest": "^29.7.0",
     "n8n-workflow": "*",
+    "ts-jest": "^29.4.9",
     "typescript": "^5.0.0"
   },
   "peerDependencies": {
