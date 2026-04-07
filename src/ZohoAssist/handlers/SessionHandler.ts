@@ -62,8 +62,8 @@ export class SessionHandler extends BaseHandler {
 		}
 
 		if (operation === 'startUnattended') {
-			const resourceId = this.getParam<string>('resourceId', index);
-			if (!resourceId?.trim()) throw new Error('Resource ID is required.');
+			const resourceId = String(this.getParam<string>('resourceId', index) ?? '');
+			if (!resourceId.trim()) throw new Error('Resource ID is required.');
 
 			const qs = departmentId ? { department_id: departmentId } : {};
 			return await this.request({ method: 'POST', url: `/unattended/${resourceId.trim()}/connect`, qs, json: true }, index);

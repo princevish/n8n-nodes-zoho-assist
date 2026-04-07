@@ -1,7 +1,7 @@
 {
   "name": "n8n-nodes-zoho-assist",
   "version": "5.0.0",
-  "description": "Zoho Assist integration for n8n with recordings download and Backblaze B2 pipeline support",
+  "description": "Zoho Assist integration for n8n with recordings download",
   "license": "MIT",
   "author": {
     "name": "Prince Vishwakarma",
@@ -24,7 +24,7 @@
     "recording download"
   ],
   "scripts": {
-    "build": "tsc && node -e \"const fs = require('fs'); const path = 'dist/src/ZohoAssist'; if (!fs.existsSync(path)) fs.mkdirSync(path, { recursive: true }); fs.copyFileSync('src/ZohoAssist/zohoAssist.svg', path + '/zohoAssist.svg');\"",
+    "build": "tsc && node -e \"const fs = require('fs'); const p1 = 'dist/src/ZohoAssist'; if (!fs.existsSync(p1)) fs.mkdirSync(p1, { recursive: true }); fs.copyFileSync('src/ZohoAssist/zohoAssist.svg', p1 + '/zohoAssist.svg');\"",
     "dev": "n8n-node dev",
     "lint": "n8n-node lint",
     "test": "jest",

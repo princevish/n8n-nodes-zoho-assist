@@ -24,8 +24,8 @@ export class ReportHandler extends BaseHandler {
 		}
 
 		if (operation === 'downloadRecording') {
-			const resourceId = this.getParam<string>('resourceId', index);
-			if (!resourceId?.trim()) throw new Error('Session ID is required.');
+			const resourceId = String(this.getParam<string>('resourceId', index) ?? '');
+			if (!resourceId.trim()) throw new Error('Session ID is required.');
 
 			const response = await this.request({
 				method: 'GET',

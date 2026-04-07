@@ -10,8 +10,8 @@ export class DeviceHandler extends BaseHandler {
 		}
 
 		if (operation === 'get') {
-			const resourceId = this.getParam<string>('resourceId', index);
-			if (!resourceId?.trim()) throw new Error('Resource ID (Device ID) is required.');
+			const resourceId = String(this.getParam<string>('resourceId', index) ?? '');
+			if (!resourceId.trim()) throw new Error('Resource ID (Device ID) is required.');
 
 			const qs = departmentId ? { department_id: departmentId } : {};
 			return await this.request({ method: 'GET', url: `/devices/${resourceId.trim()}`, qs, json: true }, index);
