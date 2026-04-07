@@ -6,12 +6,56 @@ import {
 export async function zohoRequest(this: IAllExecuteFunctions, options: any, itemIndex: number) {
 	const maxRetries = 2;
 	let lastError: any;
+	let currentToken: string | null = null;
+
+	const parseRawResponseBody = (body: any) => {
+		if (body === undefined || body === null) {
+			return {};
+		}
+
+		if (Buffer.isBuffer(body)) {
+			const text = body.toString('utf8');
+			try {
+				return JSON.parse(text);
+			} catch {
+				return { raw: text };
+			}
+		}
+
+		if (body instanceof ArrayBuffer) {
+			const text = Buffer.from(body).toString('utf8');
+			try {
+				return JSON.parse(text);
+			} catch {
+				return { raw: text };
+			}
+		}
+
+		if (body?.type === 'Buffer' && Array.isArray(body.data)) {
+			const text = Buffer.from(body.data).toString('utf8');
+			try {
+				return JSON.parse(text);
+			} catch {
+				return { raw: text };
+			}
+		}
+
+		if (typeof body === 'string') {
+			try {
+				return JSON.parse(body);
+			} catch {
+				return { raw: body };
+			}
+		}
+
+		return body;
+	};
 
 	for (let attempt = 0; attempt < maxRetries; attempt++) {
 		try {
 			const credentials = await this.getCredentials('zohoAssistOAuth2', itemIndex);
 			const tokenData = credentials.oauthTokenData as any;
-			const token = (tokenData?.access_token || credentials.accessToken || credentials.oauthToken || tokenData?.accessToken) as string;
+			const token = currentToken || (tokenData?.access_token || credentials.accessToken || credentials.oauthToken || tokenData?.accessToken) as string;
 
 			if (!token) {
 				throw new Error('Access token missing. Please re-authenticate.');
@@ -52,12 +96,12 @@ export async function zohoRequest(this: IAllExecuteFunctions, options: any, item
 			} catch (error: any) {
 				const status = error?.statusCode || error?.response?.status || error?.httpCode;
 				const rawResponseBody = error?.response?.data || error?.body || error?.cause?.response?.data;
-				const rawResponseHeaders = error?.response?.headers || {};
-				const errorDataObj = (typeof rawResponseBody === 'string' ? (() => { try { return JSON.parse(rawResponseBody); } catch { return { raw: rawResponseBody }; } })() : rawResponseBody) || {};
+				const errorDataObj = parseRawResponseBody(rawResponseBody) || {};
 				const errorCode = errorDataObj?.error?.code || errorDataObj?.error_code;
+				const errorMessage = String(errorDataObj?.error?.message || errorDataObj?.message || error.message || '');
 
 				// If it's a 401 Invalid Token, we let the outer catch handle the refresh/retry
-				if (status === 401 && (errorCode === 2000 || error.message?.includes('INVALID_OAUTHTOKEN'))) {
+				if (status === 401 && (errorCode === 2000 || /INVALID_OAUTHTOKEN/i.test(errorMessage) || /INVALID_OAUTHTOKEN/i.test(error.message))) {
 					throw error;
 				}
 
@@ -94,30 +138,54 @@ export async function zohoRequest(this: IAllExecuteFunctions, options: any, item
 		} catch (error: any) {
 			lastError = error;
 			const status = error?.statusCode || error?.response?.status;
-			const errorDataObj = error.response?.data || {};
+			const errorDataObj = parseRawResponseBody(error.response?.data) || {};
 			const errorCode = errorDataObj.error?.code || errorDataObj.error_code;
+			const errorMessage = String(errorDataObj?.error?.message || errorDataObj?.message || error.message || '');
 
-			// Handle 401/2000 (Invalid Token) by triggering a refresh and retrying
-			if (status === 401 && (errorCode === 2000 || error.message?.includes('INVALID_OAUTHTOKEN'))) {
+			// Handle 401/2000 (Invalid Token) by refreshing the token and retrying
+			if (status === 401 && (errorCode === 2000 || /INVALID_OAUTHTOKEN/i.test(errorMessage) || /INVALID_OAUTHTOKEN/i.test(error.message))) {
 				if (attempt < maxRetries - 1) {
-					// Use n8n's native authentication to force a refresh call to any Zoho endpoint
-					const credentials = await this.getCredentials('zohoAssistOAuth2', itemIndex);
-					const dcValue = (credentials.dc as string) || 'in';
-					const refreshUrls: { [key: string]: string } = {
-						in: 'https://assist.zoho.in/api/v2/user',
-						com: 'https://assist.zoho.com/api/v2/user',
-						eu: 'https://assist.zoho.eu/api/v2/user',
-						'com.au': 'https://assist.zoho.com.au/api/v2/user',
-						'com.cn': 'https://assist.zoho.com.cn/api/v2/user',
-						jp: 'https://assist.zoho.jp/api/v2/user',
-					};
+					try {
+						const credentials = await this.getCredentials('zohoAssistOAuth2', itemIndex);
+						const tokenData = credentials.oauthTokenData as any;
 
-					await this.helpers.httpRequest.call(this, {
-						url: refreshUrls[dcValue] || 'https://assist.zoho.in/api/v2/user',
-						authentication: 'zohoAssistOAuth2',
-					}).catch(() => {
-						// Ignore errors on the refresh trigger call itself
-					});
+						if (!tokenData?.refresh_token) {
+							throw new Error('No refresh token available. Please re-authenticate.');
+						}
+
+						const dc = (credentials.dc as string) || 'in';
+						const accountsMap: { [key: string]: string } = {
+							in: 'https://accounts.zoho.in',
+							com: 'https://accounts.zoho.com',
+							eu: 'https://accounts.zoho.eu',
+							'com.au': 'https://accounts.zoho.com.au',
+							'com.cn': 'https://accounts.zoho.com.cn',
+							jp: 'https://accounts.zoho.jp',
+						};
+						const accountsUrl = accountsMap[dc] || 'https://accounts.zoho.in';
+
+						// Refresh the token
+						const refreshResponse = await this.helpers.httpRequest.call(this, {
+							method: 'POST',
+							url: `${accountsUrl}/oauth/v2/token`,
+							headers: {
+								'Content-Type': 'application/x-www-form-urlencoded',
+							},
+							body: {
+								grant_type: 'refresh_token',
+								refresh_token: tokenData.refresh_token,
+								client_id: credentials.clientId,
+								client_secret: credentials.clientSecret,
+							},
+						});
+
+						// Update the token for this execution
+						currentToken = refreshResponse.access_token;
+
+					} catch (refreshError) {
+						// If refresh fails, continue to retry with the same token or fail
+						console.error('Token refresh failed:', refreshError);
+					}
 
 					// Small delay before retry
 					await new Promise((res) => setTimeout(res, 500));
@@ -125,8 +193,9 @@ export async function zohoRequest(this: IAllExecuteFunctions, options: any, item
 				}
 
 				// If we're out of retries, provide a better error message about the Data Center
+				const credentials = await this.getCredentials('zohoAssistOAuth2', itemIndex);
 				throw new NodeApiError(this.getNode(), error, {
-					message: `Authorization failed after retry. Please verify your Zoho account is actually in the ${(lastError.dcValue || 'selected').toUpperCase()} region and re-authenticate.`,
+					message: `Authorization failed after retry. Please verify your Zoho account is actually in the ${String(credentials.dc || 'selected').toUpperCase()} region and re-authenticate.`,
 				});
 			}
 
